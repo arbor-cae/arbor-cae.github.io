@@ -1,0 +1,48 @@
+name: Deploy Arbor
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [deploy-arbor]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-arbor
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Arbor
+        uses: actions/checkout@v4
+        with:
+          repository: Eerielettuce3717/arbor-cae
+          path: src
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - run: npm ci
+        working-directory: src/web
+      - run: npm run build
+        working-directory: src/web
+      - name: Checkout org site
+        uses: actions/checkout@v4
+        with:
+          path: site
+      - name: Publish export
+        run: |
+          rsync -a --delete --exclude '.git' --exclude '.github' src/web/out/ site/
+          touch site/.nojekyll
+      - name: Commit
+        working-directory: site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "Publish Arbor landing page."
+          git push
